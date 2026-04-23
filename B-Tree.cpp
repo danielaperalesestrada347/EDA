@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <queue>
 using namespace std;
 
 struct Nodo {
@@ -18,19 +19,21 @@ public:
     void Split(Nodo* nodo, int n);
     void Insert(int valor);
     void InsertNonFull(Nodo* nodo, int valor);
-    void Delete(Nodo* nodo, int valor);
+    void Remove(int valor);
+    void RemoveImpl(Nodo* nodo, int valor);
     void Merge(Nodo* nodo, int i);
     void borrowFromLeft(Nodo* nodo, int i);
     void borrowFromRight(Nodo* nodo, int i);
     int getPredecessor(Nodo* nodo);
     int getSuccessor(Nodo* nodo);
+    void Print();
 };
 
 BTree::BTree(int _maxHijos) {
     root = nullptr;
     maxHijos = _maxHijos;
     maxClaves = maxHijos - 1;
-    minClaves = (maxHijos + 1/ 2) - 1;
+    minClaves = (maxHijos / 2) - 1;
 }
 
 bool BTree::Search(Nodo* nodo, int valor) {
@@ -90,7 +93,27 @@ void BTree::InsertNonFull(Nodo* nodo, int valor) {
     InsertNonFull(nodo->hijos[i], valor);
 }
 
-void BTree::Merge(Nodo* nodo, int i) {}
+void BTree::Merge(Nodo* nodo, int i) {
+    Nodo* nodo_izq = nodo->hijos[i];
+    Nodo* nodo_der = nodo->hijos[i + 1];
+    nodo_izq->claves.push_back(nodo->claves[i]);
+    for (int j = 0; j < nodo_der->claves.size(); j++) {
+        nodo_izq->claves.push_back(nodo_der->claves[j]);
+    }
+    if (!nodo_der->esHoja) {
+        for (int j = 0; j < nodo_der->hijos.size(); j++) {
+            nodo_izq->hijos.push_back(nodo_der->hijos[j]);
+        }
+    }
+    nodo->claves.erase(nodo->claves.begin() + i);
+    nodo->hijos.erase(nodo->hijos.begin() + (i + 1) );
+    delete nodo_der;
+    if (nodo == root && root->claves.size() == 0) {
+        Nodo* nueva_root = root->hijos[0];
+        delete root;
+        root = nueva_root;
+    }
+}
 
 int BTree::getPredecessor(Nodo* nodo) {
     while (!nodo->esHoja) {
@@ -132,7 +155,7 @@ void BTree::borrowFromRight(Nodo* nodo, int i) {
     }
 }
 
-void BTree::Delete(Nodo* nodo, int valor) {
+void BTree::RemoveImpl(Nodo* nodo, int valor) {
     int i = 0;
     for (; i < nodo->claves.size() && valor > nodo->claves[i]; i++);
     if (i < nodo->claves.size() && valor == nodo->claves[i]) {
@@ -146,16 +169,16 @@ void BTree::Delete(Nodo* nodo, int valor) {
             if (hijo_izq->claves.size() > minClaves) {
                 int predecesor = getPredecessor(hijo_izq);
                 nodo->claves[i] = predecesor;
-                Delete(hijo_izq, predecesor);
+                RemoveImpl(hijo_izq, predecesor);
             }
             else if (hijo_der->claves.size() > minClaves) {
                 int sucesor = getSuccessor(hijo_der);
                 nodo->claves[i] = sucesor;
-                Delete(hijo_der, sucesor);
+                RemoveImpl(hijo_der, sucesor);
             }
             else{
                 Merge(nodo, i);
-                Delete(nodo->hijos[i], valor);//No utilizamos hijos_izq, puede haber cambiado tras el merge
+                RemoveImpl(nodo->hijos[i], valor);//No utilizamos hijos_izq, puede haber cambiado tras el merge
             }
         }
     }
@@ -167,21 +190,77 @@ void BTree::Delete(Nodo* nodo, int valor) {
             else { 
                 if (i == 0) { 
                     Merge(nodo, i);
-                    Delete(nodo->hijos[i], valor);
+                    RemoveImpl(nodo->hijos[i], valor);
                     return;
                 }
                 else { 
                     Merge(nodo, i - 1); 
-                    Delete(nodo->hijos[i - 1], valor);
+                    RemoveImpl(nodo->hijos[i - 1], valor);
                     return;
                 }
             }
         }
-        Delete(nodo->hijos[i], valor);
+        RemoveImpl(nodo->hijos[i], valor);
+    }
+}
+void BTree::Remove(int valor) {
+    if (!root) return;
+    RemoveImpl(root, valor);
+    if (root->claves.size() == 0) {
+        Nodo* temp = root;
+        if (root->esHoja) root = nullptr;//[1]
+        else root = root->hijos[0];//[2]
+        delete temp; // se elimina el nodo viejo, puesto que la ruta ahora será igual a uno de los casos anteriores [1] y [2]
     }
 }
 
-int main()
-{
-    std::cout << "Hello World!\n";
+void BTree::Print() {
+    if (!root) return;
+    queue <Nodo*> q;
+    q.push(root);
+    while (!q.empty()) {
+        int size = q.size();
+        for (int i = 0; i < size; i++) {
+            Nodo* nodo = q.front();
+            q.pop();
+
+            cout << "[ ";
+            for (int j = 0; j < nodo->claves.size(); j++) {
+                cout << nodo->claves[j] << " ";
+            }
+            cout << "] ";
+            if (!nodo->esHoja) {
+                for (int j = 0; j < nodo->hijos.size(); j++) {
+                    q.push(nodo->hijos[j]);
+                }
+            }
+        }
+        cout << endl;
+    }
+}
+int main() {
+    BTree tree(4);
+
+    tree.Insert(10);
+    tree.Insert(20);
+    tree.Insert(5);
+    tree.Insert(6);
+    tree.Insert(12);
+    tree.Insert(30);
+    tree.Insert(7);
+    tree.Insert(17);
+
+    cout << "Arbol:\n";
+    tree.Print();
+
+    tree.Remove(6);
+    tree.Print();
+    tree.Remove(30);
+    tree.Print();
+    tree.Remove(7);
+    tree.Print();
+    tree.Remove(20);
+    tree.Print();
+
+    return 0;
 }
